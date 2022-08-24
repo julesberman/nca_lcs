@@ -1,0 +1,18 @@
+### Function approximation with bumps
+Function $s(x)\ge 0$ (slowness, e.g.)
+
+Bumps defined by kernel $K(x,x')$, for now assume they are Gaussian, round with fixed width: $K(x,x')=\exp \|x-x'\|^2 / 2\sigma^2 $.
+
+Given a resource of $n$ bumps, select a centroid $c_i$ and a weight $w_i, i=1...n$, for each of them to best approximate the function at the given points $x$:
+
+$$\min_{c_i,w_i} \mathscr{L}:= \frac{1}{2}\sum_x \|s(x) - \sum_i w_i K(c_i,x)\|^2$$
+
+Having centroids fixed, the optimal weights are given by 
+
+$$ \pmb{w} = (\pmb{K}^\top\pmb{K})^{-1}\pmb{K}^\top\pmb{s}$$
+
+where $\pmb{w}$ is the vector of weights, $\pmb{s}$ is the vector of function values, and $\pmb{K}$ is the matrix of kernel values.
+
+Given a fixed set of weights, centroids can be updated by gradient descent. Denoting $\text{err}(x):=\sum_j w_j K(c_j,x) - s(x)$, the gradient is:
+
+$$\nabla_{c_i} \mathscr{L}=  w_i \sum_x \text{err}(x) \nabla_{c_i}K(c_i,x)$$
