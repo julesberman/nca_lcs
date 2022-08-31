@@ -42,7 +42,7 @@ def Duffing1D(t, u, PARAMETERS=[1, 1]):
     return v
 
 
-def DoubleGyre(t, u, PARAMETERS=[0, 0.25, 2*np.pi, 0, 0, 1, 0.25]):
+def DoubleGyre(t, u, PARAMETERS=[0, 0.1, 2*np.pi/10, 0, 0, 1, 0.25]):
     """
     Returns 2D Double Gyre vector field at time t, for an array of points in phase space.
     Number of model parameters: 6 . PARAMETERS = [phase_shift, A, phi, psi, mu, s, epsilon]

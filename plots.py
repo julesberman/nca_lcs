@@ -4,7 +4,7 @@ import numpy as np
 from tools import *
 
 
-def plot_vector_field(vector_field, grid,  size=(14, 8), T=0):
+def plot_vector_field(vector_field, grid,  size=(8, 6), T=0, show=True):
 
     [(x_min, x_max, Nx), (y_min, y_max, Ny)] = grid
     pts = get_point_array_from_grid(grid)
@@ -15,9 +15,11 @@ def plot_vector_field(vector_field, grid,  size=(14, 8), T=0):
     plt.quiver(x, y, u, v)
     plt.xlim([x_min, x_max])
     plt.ylim([y_min, y_max])
-    fig = plt.gcf()
-    fig.set_size_inches(*size)
-    plt.show()
+
+    if show:
+        fig = plt.gcf()
+        fig.set_size_inches(*size)
+        plt.show()
 
 
 # def plot_vector_field(grid, v_pts, size=(14, 8), N=25, T=0):
@@ -39,17 +41,28 @@ def plot_vector_field(vector_field, grid,  size=(14, 8), T=0):
 #     fig.set_size_inches(*size)
 #     plt.show()
 
+def plot_scalar_field_ax(grid, z, ax):
 
-def plot_scalar_field(grid, z, size=(14, 8), show=True):
+    ax1 = np.linspace(*grid[0])
+    ax2 = np.linspace(*grid[1])
+    z = z.reshape(grid[0][-1], grid[1][-1])
+    ax.contourf(ax1, ax2, z, cmap='viridis', levels=100)
+
+
+def plot_scalar_field(grid, z, size=(8, 6), show=True, colorbar=True, title=''):
 
     ax1 = np.linspace(*grid[0])
     ax2 = np.linspace(*grid[1])
     z = z.reshape(grid[0][-1], grid[1][-1])
     plt.contourf(ax1, ax2, z, cmap='viridis', levels=100)
     fig = plt.gcf()
-    plt.colorbar()
+    if colorbar:
+        plt.colorbar()
 
     fig.set_size_inches(*size)
+
+    if title is not '':
+        plt.title(title)
 
     if show:
         plt.show()

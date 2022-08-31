@@ -1,10 +1,12 @@
-import matplotlib.pyplot as plt
+from tkinter import W
+from turtle import pos
 import numpy as np
-from ldds.vector_fields import Duffing1D
 from scipy.integrate import solve_ivp
 import scipy
 import scipy.signal
 from einops import rearrange
+import matplotlib.pyplot as plt
+import copy
 
 
 def get_point_array_from_grid(grid):
@@ -76,7 +78,7 @@ def solve_FTLE(trajs, grid_parameters, tau):
     return FTLE, FTLV
 
 
-def mean_tse(trajs, dt):
+def mean_tse_wrong(trajs, dt):
     central_diff = np.array([[1, 0, -1]])
 
     trajs_x = trajs[:, 0, :]
@@ -87,6 +89,7 @@ def mean_tse(trajs, dt):
     eps = 1e-12
     dtx += eps
     dty += eps
+
     xtse = np.sum(
         np.abs(np.log(np.abs(dtx[:, 1:])/np.abs(dtx[:, :-1])+eps)), axis=1)
     ytse = np.sum(
@@ -97,7 +100,23 @@ def mean_tse(trajs, dt):
     return tse
 
 
-def learn_lcs(X, Y, num_neurons, eta=0.1, epochs=1, eps=0):
+def mean_tse(trajs, dt):
+    central_diff = np.array([[1, 0, -1]])
+
+    trajs_x = trajs[:, 0, :]
+    trajs_y = trajs[:, 1, :]
+    dtx = scipy.signal.convolve2d(trajs_x, central_diff, 'valid') / (2*dt)
+    dty = scipy.signal.convolve2d(trajs_y, central_diff, 'valid') / (2*dt)
+
+    norm = np.linalg.norm(np.array([dtx, dty]), axis=0)
+    norm += 1e-12
+    tse = np.sum(
+        np.abs(np.log(norm[:, 1:]/norm[:, :-1])), axis=1)
+
+    return tse
+
+
+def learn_lcs(X, Y, num_neurons, eta=0.1, epochs=1, eps=0, min_dist=0):
 
     (N, dim) = X.shape
     neurons = []
@@ -126,23 +145,103 @@ def learn_lcs(X, Y, num_neurons, eta=0.1, epochs=1, eps=0):
                 y += eta*(yt-y)
             x += eta*(xt - x)
 
-            # # enforce min dist
-            # no_overlap = True
-            # for i, (xj, yj) in enumerate(neurons):
-            #     d = np.linalg.norm(x-xj)
-            #     if d < min_dist and i != opt_i:
-            #         no_overlap = False
+            # enforce min dist
+            no_overlap = True
+            if min_dist > 0:
+                for i, (xj, yj) in enumerate(neurons):
+                    d = np.linalg.norm(x-xj)
+                    if d < min_dist and i != opt_i:
+                        no_overlap = False
 
-            # if no_overlap:
-            neurons[opt_i] = (x, y)
+            if no_overlap:
+                neurons[opt_i] = (x, y)
 
         return neurons
 
+    all_neurons = []
     for epoch in range(epochs):
         shuffle_i = np.arange(N)
         np.random.shuffle(shuffle_i)
         X, Y = X[shuffle_i], Y[shuffle_i]
         for x, y in zip(X, Y):
             neurons = update_neurons(neurons, (x, y))
+            all_neurons.append(copy.deepcopy(neurons))
 
-    return neurons
+    return neurons, all_neurons
+
+
+def min_field_cluster(X, Y, n_centroids, alpha=1.0, eta=0.1, epochs=1, return_history=False):
+    '''
+    Returns the sum of two decimal numbers in binary digits.
+    P = number_of_sampled_points, D = dim_of_space, T = total_train_steps
+
+            Parameters:
+                    X (PxD matrix):        matrix indicating the positon of each points
+                    Y (P vector):          indicates the slowness each point
+                    alpha (float):         parameter to control weighting function
+                    eta (float):           learning rate
+                    epochs (int):          controls how many times we iterate through the entire training set (X, Y)
+                    return_history (bool): weather to return a per step history of position and slowness
+            Returns:
+                    position (str): Binary string of the sum of a and b
+                    slowness (str): Binary string of the sum of a and b
+                    history (optina): Binary string of the sum of a and b
+    '''
+
+    def update_neurons(position, slowness, p_t, s_t):
+        '''
+        Helper function to perform one update step of the algorithm 
+        N = n_centroids, D = dim_of_space
+
+                Parameters:
+                        position (PxD matrix): the positon of each centroid
+                        slowness (N vector):   the current slowness of each centroid 
+                        p_t (D vector):        the position of the incoming data point (trajectory start)
+                        s_t (float):           the slowness of the incoming data point (trajectory slowness)
+                Returns:
+                        (position, slowness) updated as defined above
+
+        '''
+
+        # computer distance from all centroids to point
+        dist = np.linalg.norm(position-p_t, axis=1)
+
+        # find closest centroid position
+        opt_i = np.argmin(dist)
+        p_i = position[opt_i]
+        s_i = slowness[opt_i]
+
+        # compute update weight
+        w = 1 if s_t < s_i else alpha/(s_t - s_i + alpha)
+
+        # update
+        position[opt_i] += eta*w*(p_t-p_i)
+        slowness[opt_i] += eta*w*(s_t-s_i)
+
+        return position, slowness
+
+    # inititalize centroids by setting their position and slowness to
+    # random samples from the training set
+    inits_i = np.random.choice(X.shape[0], size=n_centroids)
+    position = X[inits_i]
+    slowness = Y[inits_i]
+
+    all_positions = []
+    all_slowness = []
+    for _ in range(epochs):
+        # for each epoch shuffle training set then learn
+        shuffle_i = np.arange(X.shape[0])
+        np.random.shuffle(shuffle_i)
+        X, Y = X[shuffle_i], Y[shuffle_i]
+        for x, y in zip(X, Y):
+            position, slowness = update_neurons(position, slowness, x, y)
+
+            # record history
+            if return_history:
+                all_slowness.append(slowness.copy())
+                all_positions.append(position.copy())
+
+    if return_history:
+        return position, slowness, (all_positions, all_slowness)
+
+    return position, slowness
